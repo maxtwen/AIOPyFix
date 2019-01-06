@@ -1,4 +1,4 @@
-from pyfix.journaler import Journaler
+from aiopyfix.journaler import Journaler
 
 
 class FIXEngine(object):

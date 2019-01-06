@@ -1,7 +1,7 @@
 import argparse
 import logging
-from pyfix.journaler import Journaler
-from pyfix.message import MessageDirection
+from aiopyfix.journaler import Journaler
+from aiopyfix.message import MessageDirection
 
 
 def main():

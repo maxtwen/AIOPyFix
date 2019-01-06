@@ -1,7 +1,7 @@
 import sqlite3
 import pickle
-from pyfix.message import MessageDirection
-from pyfix.session import FIXSession
+from aiopyfix.message import MessageDirection
+from aiopyfix.session import FIXSession
 
 
 class DuplicateSeqNoError(Exception):

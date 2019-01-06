@@ -1,9 +1,9 @@
 import asyncio
 import logging
 import socket
-from pyfix.journaler import DuplicateSeqNoError
-from pyfix.session import FIXSession
-from pyfix.connection import FIXEndPoint, ConnectionState, MessageDirection, FIXConnectionHandler
+from aiopyfix.journaler import DuplicateSeqNoError
+from aiopyfix.session import FIXSession
+from aiopyfix.connection import FIXEndPoint, ConnectionState, MessageDirection, FIXConnectionHandler
 
 
 class FIXServerConnectionHandler(FIXConnectionHandler):

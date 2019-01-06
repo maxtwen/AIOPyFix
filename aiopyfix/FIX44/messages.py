@@ -1,5 +1,5 @@
-from pyfix.FIX44 import msgtype, fixtags
-from pyfix.message import FIXMessage
+from aiopyfix.FIX44 import msgtype, fixtags
+from aiopyfix.message import FIXMessage
 
 class Messages(object):
 

@@ -1,8 +1,8 @@
 import unittest
-from pyfix.connection import MessageDirection
-from pyfix.journaler import Journaler
-from pyfix.message import FIXMessage, FIXContext
-from pyfix.session import FIXSession
+from aiopyfix.connection import MessageDirection
+from aiopyfix.journaler import Journaler
+from aiopyfix.message import FIXMessage, FIXContext
+from aiopyfix.session import FIXSession
 
 
 class JournalerTests(unittest.TestCase):

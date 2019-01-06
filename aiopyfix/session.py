@@ -1,6 +1,6 @@
 import logging
-from pyfix.FIX44 import fixtags
-from pyfix.message import MessageDirection
+from aiopyfix.FIX44 import fixtags
+from aiopyfix.message import MessageDirection
 
 
 class FIXSession:

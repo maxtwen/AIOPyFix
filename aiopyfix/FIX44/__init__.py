@@ -1,4 +1,4 @@
-from pyfix.FIX44 import msgtype, messages
+from aiopyfix.FIX44 import msgtype, messages
 
 __author__ = 'tom'
 

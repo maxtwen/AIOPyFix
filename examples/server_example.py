@@ -1,10 +1,10 @@
 import asyncio
 from enum import Enum
 import logging
-from pyfix.connection import ConnectionState, MessageDirection
-from pyfix.engine import FIXEngine
-from pyfix.message import FIXMessage
-from pyfix.server_connection import FIXServer
+from aiopyfix.connection import ConnectionState, MessageDirection
+from aiopyfix.engine import FIXEngine
+from aiopyfix.message import FIXMessage
+from aiopyfix.server_connection import FIXServer
 
 
 class Side(Enum):
@@ -16,7 +16,7 @@ class Server(FIXEngine):
     def __init__(self):
         FIXEngine.__init__(self, "server_example.store")
         # create a FIX Server using the FIX 4.4 standard
-        self.server = FIXServer(self, "pyfix.FIX44")
+        self.server = FIXServer(self, "aiopyfix.FIX44")
 
         # we register some listeners since we want to know when the connection goes up or down
         self.server.addConnectionListener(self.onConnect, ConnectionState.CONNECTED)

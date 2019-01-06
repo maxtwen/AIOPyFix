@@ -1,6 +1,6 @@
 from datetime import datetime
 import logging
-from pyfix.message import FIXMessage, FIXContext
+from aiopyfix.message import FIXMessage, FIXContext
 
 class EncodingError(Exception):
     pass

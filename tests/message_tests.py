@@ -1,5 +1,5 @@
 import pickle
-from pyfix.message import FIXMessage, FIXContext
+from aiopyfix.message import FIXMessage, FIXContext
 
 __author__ = 'tom'
 

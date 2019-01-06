@@ -1,13 +1,17 @@
-# PyFIX [![Build Status](https://travis-ci.org/wannabegeek/PyFIX.svg?branch=master)](https://travis-ci.org/wannabegeek/PyFIX)
-Open Source implementation of a FIX (Financial Information eXchange) Engine implemented in Python
+# AIOPyFIX [![Build Status](https://api.travis-ci.org/maxtwen/AIOPyFix.svg?branch=master)](https://travis-ci.org/maxtwen/AIOPyFix)
+Open Source implementation of a FIX (Financial Information eXchange) Engine implemented in Python asyncio
 
 See here [http://fixprotocol.org/] for more information on what FIX is.
 
 ## Installation
 
-This package requires Python 3 to run.
+This package requires Python 3.6 to run.
 
 Install in the normal python way
+```
+pip install aiopyfix
+```
+or from source
 ```
 python setup.py install
 ```    
@@ -17,23 +21,18 @@ and it should install with no errors
 Using the module should be simple. There is an examples directory, which is the probably best place to start.
 
 ### Session Setup
-Create an `EventManager` object instance, this handles all the timers and socket data required by the FIX engine, however, you can add to events to the manager if required.
 
 Either you can create a `FIXClient` or a `FIXServer`. The Client initiates the connection and also initaiates the Logon sequence, a Server would sit there waiting for inbound connections, and expect a Logon message to be sent.
 ```python
-self.eventMgr = EventManager()
-self.client = FIXClient(self.eventMgr, "pyfix.FIX44", "TARGET", "SENDER")
+self.client = FIXClient("aiopyfix.FIX44", "TARGET", "SENDER")
 
 # tell the client to start the connection sequence
-self.client.start('localhost', int("9898"))
+await self.client.start('localhost', int("9898"), loop)
 
-# enter the event loop waiting for something to happen
-while True:
-    self.eventMgr.waitForEvent()
 
 ```
 
-The argument "pyfix.FIX44" specified the module which is used as the protocol, this is dynamically loaded, to you can create and specify your own if required.
+The argument "aiopyfix.FIX44" specified the module which is used as the protocol, this is dynamically loaded, to you can create and specify your own if required.
 
 If you want to do something useful, other than just watching the session level bits work, you'll probably want to register for connection status changes (you'll need to do this be fore starting the event loop);
 
@@ -44,11 +43,11 @@ self.client.addConnectionListener(self.onDisconnect, ConnectionState.DISCONNECTE
 
 The implementatino of thouse methods would be something like this;
 ```python
-def onConnect(self, session):
+async def onConnect(self, session):
     logging.info("Established connection to %s" % (session.address(), ))
     session.addMessageHandler(self.onLogin, MessageDirection.INBOUND, self.client.protocol.msgtype.LOGON)
 
-def onDisconnect(self, session):
+async def onDisconnect(self, session):
     logging.info("%s has disconnected" % (session.address(), ))
     session.removeMsgHandler(self.onLogin, MessageDirection.INBOUND, self.client.protocol.msgtype.LOGON)
 ```
@@ -72,7 +71,7 @@ The session level tags will be added when the message is encoded by the codec. S
 Example of building a simple message
 
 ```python
-def sendOrder(self, connectionHandler):
+async def sendOrder(self, connectionHandler):
     self.clOrdID = self.clOrdID + 1
     # get the codec we are currently using for this session
     codec = connectionHandler.codec
@@ -95,7 +94,7 @@ def sendOrder(self, connectionHandler):
     msg.setField(codec.protocol.fixtags.Currency, "GBP")
 
     # send the message on the session
-    connectionHandler.sendMsg(codec.pack(msg, connectionHandler.session))
+    await connectionHandler.sendMsg(codec.pack(msg, connectionHandler.session))
 ```
 
 A message (which is a subclass of `FIXContext`) can also hold instances of `FIXContext`, these will be treated as repeating groups. For example
@@ -132,6 +131,6 @@ session.addMessageHandler(self.onLogin, MessageDirection.INBOUND, self.client.pr
 
 the signature for the callback is something like;
 ```
-def onLogin(self, connectionHandler, msg):
+async def onLogin(self, connectionHandler, msg):
     logging.info("Logged in")
 ```

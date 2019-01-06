@@ -1,11 +1,11 @@
 import asyncio
 import importlib
 import sys
-from pyfix.codec import Codec
-from pyfix.journaler import DuplicateSeqNoError
-from pyfix.message import FIXMessage, MessageDirection
+from aiopyfix.codec import Codec
+from aiopyfix.journaler import DuplicateSeqNoError
+from aiopyfix.message import FIXMessage, MessageDirection
 
-from pyfix.session import *
+from aiopyfix.session import *
 from enum import Enum
 
 class ConnectionState(Enum):

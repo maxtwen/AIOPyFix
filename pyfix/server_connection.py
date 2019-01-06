@@ -1,15 +1,16 @@
+import asyncio
 import logging
 import socket
 from pyfix.journaler import DuplicateSeqNoError
 from pyfix.session import FIXSession
 from pyfix.connection import FIXEndPoint, ConnectionState, MessageDirection, FIXConnectionHandler
-from pyfix.event import FileDescriptorEventRegistration, EventType
+
 
 class FIXServerConnectionHandler(FIXConnectionHandler):
-    def __init__(self, engine, protocol, sock=None, addr=None, observer=None):
-        FIXConnectionHandler.__init__(self, engine, protocol, sock, addr, observer)
+    def __init__(self, engine, protocol, reader, writer, addr=None, observer=None):
+        FIXConnectionHandler.__init__(self, engine, protocol, reader, writer, addr, observer)
 
-    def handleSessionMessage(self, msg):
+    async def handleSessionMessage(self, msg):
         protocol = self.codec.protocol
 
         recvSeqNo = msg[protocol.fixtags.MsgSeqNum]
@@ -30,25 +31,25 @@ class FIXServerConnectionHandler(FIXConnectionHandler):
                         self.connectionState = ConnectionState.LOGGED_IN
                         self.heartbeatPeriod = float(msg[protocol.fixtags.HeartBtInt])
                         responses.append(protocol.messages.Messages.logon())
-                        self.registerLoggedIn()
                     except DuplicateSeqNoError:
                         logging.error("Failed to process login request with duplicate seq no")
-                        self.disconnect()
+                        await self.disconnect()
                         return
                 else:
-                    logging.warning("Rejected login attempt for invalid session (SenderCompId: %s, TargetCompId: %s)" % (senderCompId, targetCompId))
-                    self.disconnect()
-                    return # we have to return here since self.session won't be valid
+                    logging.warning(
+                        "Rejected login attempt for invalid session (SenderCompId: %s, TargetCompId: %s)" % (
+                            senderCompId, targetCompId))
+                    await self.disconnect()
+                    return  # we have to return here since self.session won't be valid
         elif self.connectionState == ConnectionState.LOGGED_IN:
             # compids are reversed here
             if not self.session.validateCompIds(senderCompId, targetCompId):
                 logging.error("Received message with unexpected comp ids")
-                self.disconnect()
+                await self.disconnect()
                 return
 
             if msgType == protocol.msgtype.LOGOUT:
                 self.connectionState = ConnectionState.LOGGED_OUT
-                self.registerLoggedOut()
                 self.handle_close()
             elif msgType == protocol.msgtype.TESTREQUEST:
                 responses.append(protocol.messages.Messages.heartbeat())
@@ -63,34 +64,21 @@ class FIXServerConnectionHandler(FIXConnectionHandler):
 
         return (recvSeqNo, responses)
 
+
 class FIXServer(FIXEndPoint):
     def __init__(self, engine, protocol):
-     FIXEndPoint.__init__(self, engine, protocol)
+        FIXEndPoint.__init__(self, engine, protocol)
+        self.server = None
 
-    def start(self, host, port):
+    async def start(self, host, port, loop):
         self.connections = []
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.bind((host, port))
-        self.socket.listen(5)
-        self.serverSocketRegistration = FileDescriptorEventRegistration(self.handle_accept, self.socket, EventType.READ)
-
+        self.server = await asyncio.start_server(self.handle_accept, host, port, loop=loop)
         logging.debug("Awaiting Connections " + host + ":" + str(port))
-        self.engine.eventManager.registerHandler(self.serverSocketRegistration)
 
-    def stop(self):
-        logging.info("Stopping server connections")
-        for connection in self.connections:
-            connection.disconnect()
-        self.serverSocketRegistration.fd.close()
-        self.engine.eventManager.unregisterHandler(self.serverSocketRegistration)
-
-    def handle_accept(self, type, closure):
-        pair = self.socket.accept()
-        if pair is not None:
-            sock, addr = pair
-            logging.info("Connection from %s" % repr(addr))
-            connection = FIXServerConnectionHandler(self.engine, self.protocol, sock, addr, self)
-            self.connections.append(connection)
-            for handler in filter(lambda x: x[1] == ConnectionState.CONNECTED, self.connectionHandlers):
-                    handler[0](connection)
+    async def handle_accept(self, reader, writer):
+        addr = writer.get_extra_info('peername')
+        logging.info("Connection from %s" % repr(addr))
+        connection = FIXServerConnectionHandler(self.engine, self.protocol, reader, writer, addr, self)
+        self.connections.append(connection)
+        for handler in filter(lambda x: x[1] == ConnectionState.CONNECTED, self.connectionHandlers):
+            await handler[0](connection)

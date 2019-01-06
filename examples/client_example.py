@@ -1,3 +1,4 @@
+import asyncio
 from enum import Enum
 import logging
 import random
@@ -5,11 +6,12 @@ from pyfix.connection import ConnectionState, MessageDirection
 from pyfix.client_connection import FIXClient
 from pyfix.engine import FIXEngine
 from pyfix.message import FIXMessage
-from pyfix.event import TimerEventRegistration
+
 
 class Side(Enum):
     buy = 1
     sell = 2
+
 
 class Client(FIXEngine):
     def __init__(self):
@@ -24,30 +26,24 @@ class Client(FIXEngine):
         self.client.addConnectionListener(self.onConnect, ConnectionState.CONNECTED)
         self.client.addConnectionListener(self.onDisconnect, ConnectionState.DISCONNECTED)
 
-        # start our event listener indefinitely
-        self.client.start('localhost', int("9898"))
-        while True:
-            self.eventManager.waitForEventWithTimeout(10.0)
+    async def start(self, host, port, loop):
+        await self.client.start(host, port, loop)
 
-        # some clean up before we shut down
-        self.client.removeConnectionListener(self.onConnect, ConnectionState.CONNECTED)
-        self.client.removeConnectionListener(self.onConnect, ConnectionState.DISCONNECTED)
-
-    def onConnect(self, session):
-        logging.info("Established connection to %s" % (session.address(), ))
+    async def onConnect(self, session):
+        logging.info("Established connection to %s" % (session.address(),))
         # register to receive message notifications on the session which has just been created
         session.addMessageHandler(self.onLogin, MessageDirection.INBOUND, self.client.protocol.msgtype.LOGON)
-        session.addMessageHandler(self.onExecutionReport, MessageDirection.INBOUND, self.client.protocol.msgtype.EXECUTIONREPORT)
+        session.addMessageHandler(self.onExecutionReport, MessageDirection.INBOUND,
+                                  self.client.protocol.msgtype.EXECUTIONREPORT)
 
-    def onDisconnect(self, session):
-        logging.info("%s has disconnected" % (session.address(), ))
+    async def onDisconnect(self, session):
+        logging.info("%s has disconnected" % (session.address(),))
         # we need to clean up our handlers, since this session is disconnected now
         session.removeMessageHandler(self.onLogin, MessageDirection.INBOUND, self.client.protocol.msgtype.LOGON)
-        session.removeMessageHandler(self.onExecutionReport, MessageDirection.INBOUND, self.client.protocol.msgtype.EXECUTIONREPORT)
-        if self.msgGenerator:
-            self.eventManager.unregisterHandler(self.msgGenerator)
+        session.removeMessageHandler(self.onExecutionReport, MessageDirection.INBOUND,
+                                     self.client.protocol.msgtype.EXECUTIONREPORT)
 
-    def sendOrder(self, connectionHandler):
+    async def sendOrder(self, connectionHandler):
         self.clOrdID = self.clOrdID + 1
         codec = connectionHandler.codec
         msg = FIXMessage(codec.protocol.msgtype.NEWORDERSINGLE)
@@ -63,34 +59,38 @@ class Client(FIXEngine):
         msg.setField(codec.protocol.fixtags.ClOrdID, str(self.clOrdID))
         msg.setField(codec.protocol.fixtags.Currency, "GBP")
 
-        connectionHandler.sendMsg(msg)
+        await connectionHandler.sendMsg(msg)
         side = Side(int(msg.getField(codec.protocol.fixtags.Side)))
-        logging.debug("---> [%s] %s: %s %s %s@%s" % (codec.protocol.msgtype.msgTypeToName(msg.msgType), msg.getField(codec.protocol.fixtags.ClOrdID), msg.getField(codec.protocol.fixtags.Symbol), side.name, msg.getField(codec.protocol.fixtags.OrderQty), msg.getField(codec.protocol.fixtags.Price)))
+        logging.debug("---> [%s] %s: %s %s %s@%s" % (
+        codec.protocol.msgtype.msgTypeToName(msg.msgType), msg.getField(codec.protocol.fixtags.ClOrdID),
+        msg.getField(codec.protocol.fixtags.Symbol), side.name, msg.getField(codec.protocol.fixtags.OrderQty),
+        msg.getField(codec.protocol.fixtags.Price)))
 
-
-    def onLogin(self, connectionHandler, msg):
+    async def onLogin(self, connectionHandler, msg):
         logging.info("Logged in")
 
-        # lets do something like send and order every 3 seconds
-        self.msgGenerator = TimerEventRegistration(lambda type, closure: self.sendOrder(closure), 0.5, connectionHandler)
-        self.eventManager.registerHandler(self.msgGenerator)
+        await self.sendOrder(connectionHandler)
 
-    def onExecutionReport(self, connectionHandler, msg):
+    async def onExecutionReport(self, connectionHandler, msg):
         codec = connectionHandler.codec
         if codec.protocol.fixtags.ExecType in msg:
             if msg.getField(codec.protocol.fixtags.ExecType) == "0":
                 side = Side(int(msg.getField(codec.protocol.fixtags.Side)))
-                logging.debug("<--- [%s] %s: %s %s %s@%s" % (codec.protocol.msgtype.msgTypeToName(msg.getField(codec.protocol.fixtags.MsgType)), msg.getField(codec.protocol.fixtags.ClOrdID), msg.getField(codec.protocol.fixtags.Symbol), side.name, msg.getField(codec.protocol.fixtags.OrderQty), msg.getField(codec.protocol.fixtags.Price)))
+                logging.debug("<--- [%s] %s: %s %s %s@%s" % (
+                codec.protocol.msgtype.msgTypeToName(msg.getField(codec.protocol.fixtags.MsgType)),
+                msg.getField(codec.protocol.fixtags.ClOrdID), msg.getField(codec.protocol.fixtags.Symbol), side.name,
+                msg.getField(codec.protocol.fixtags.OrderQty), msg.getField(codec.protocol.fixtags.Price)))
             elif msg.getField(codec.protocol.fixtags.ExecType) == "4":
-                reason = "Unknown" if codec.protocol.fixtags.Text not in msg else msg.getField(codec.protocol.fixtags.Text)
+                reason = "Unknown" if codec.protocol.fixtags.Text not in msg else msg.getField(
+                    codec.protocol.fixtags.Text)
                 logging.info("Order Rejected '%s'" % (reason,))
         else:
             logging.error("Received execution report without ExecType")
 
-def main():
-    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG)
-    client = Client()
-    logging.info("All done... shutting down")
 
 if __name__ == '__main__':
-    main()
+    logging.basicConfig(level=logging.DEBUG)
+    loop = asyncio.get_event_loop()
+    client = Client()
+    loop.run_until_complete(client.start('', 9898, loop))
+    loop.run_forever()

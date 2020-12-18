@@ -52,7 +52,11 @@ class FIXServerConnectionHandler(FIXConnectionHandler):
                 self.connectionState = ConnectionState.LOGGED_OUT
                 self.handle_close()
             elif msgType == protocol.msgtype.TESTREQUEST:
-                responses.append(protocol.messages.Messages.heartbeat())
+                heartbeat = protocol.messages.Messages.heartbeat()
+                testReqID = msg[protocol.fixtags.TestReqID]
+                if testReqID:
+                    heartbeat[protocol.fixtags.TestReqID] = testReqID
+                responses.append(heartbeat)
             elif msgType == protocol.msgtype.RESENDREQUEST:
                 responses.extend(self._handleResendRequest(msg))
             elif msgType == protocol.msgtype.SEQUENCERESET:
